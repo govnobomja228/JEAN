@@ -765,7 +765,7 @@ body {
 </div>
 
 <script>
-const API_URL = 'https://poised-valuable-chef.glitch.me';
+const API_URL = window.location.hostname === 'localhost' ? 'http://localhost:3000' : 'https://poised-valuable-chef.glitch.me';
 const ADMIN_CODE = 'DanyaJEANsmoke'; // Ваш секретный код
 
 // Инициализация данных
@@ -786,8 +786,8 @@ function initUser() {
       fetch(`${API_URL}/api/register`)
         .then(res => res.json())
         .then(data => {
-          if (data && data.userId) {
-            userId = data.userId;
+          if (data && data.clientId) {
+            userId = data.clientId;
             localStorage.setItem('userId', userId);
             document.getElementById('userId').textContent = userId;
           } else {
@@ -812,65 +812,6 @@ function initUser() {
     document.getElementById('userId').textContent = userId;
   }
   return userId;
-}
-
-  try {
-    // Добавляем параметры запроса
-    const url = new URL(`${API_URL}/api/user/orders`);
-    url.searchParams.append('userId', userId);
-    
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-      },
-      credentials: 'include' // Важно для CORS
-    });
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    const result = await response.json();
-    
-    if (result.data.length === 0) {
-      ordersContainer.innerHTML = `
-        <div class="empty-orders">
-          <i class="fas fa-box-open"></i>
-          <p>У вас пока нет заказов</p>
-        </div>
-      `;
-      return;
-    }
-
-    // Рендерим заказы
-    ordersContainer.innerHTML = result.data.map(order => `
-      <div class="order-card">
-        <div class="order-header">
-          <span class="order-id">Заказ #${order.id}</span>
-          <span class="order-date">${new Date(order.date).toLocaleString()}</span>
-        </div>
-        <div class="order-status ${order.status.toLowerCase().replace(/\s/g, '-')}">
-          ${order.status}
-        </div>
-        <div class="order-total">${order.total} ₽</div>
-        <button class="order-details-btn" data-order-id="${order.id}">
-          Подробнее
-        </button>
-      </div>
-    `).join('');
-
-  } catch (error) {
-    console.error('Order load error:', error);
-    ordersContainer.innerHTML = `
-      <div class="error-message">
-        <i class="fas fa-exclamation-triangle"></i>
-        <p>Не удалось загрузить заказы</p>
-        <button onclick="loadUserOrders()">Повторить попытку</button>
-      </div>
-    `;
-  }
 }
 
 // Проверка прав администратора
@@ -1003,8 +944,7 @@ function updateAdminProductsList(products) {
         const response = await fetch(`${API_URL}/api/admin/products/${productId}`, {
           method: 'PUT',
           headers: { 
-            'Content-Type': 'application/json',
-            'Authorization': ADMIN_CODE
+            'Content-Type': 'application/json'
           },
           body: JSON.stringify(updatedProduct)
         });
@@ -1028,10 +968,7 @@ function updateAdminProductsList(products) {
       const productId = btn.dataset.id;
       try {
         const response = await fetch(`${API_URL}/api/admin/products/${productId}`, {
-          method: 'DELETE',
-          headers: { 
-            'Authorization': ADMIN_CODE
-          }
+          method: 'DELETE'
         });
         
         if (!response.ok) throw new Error('Ошибка удаления');
@@ -1060,13 +997,8 @@ function loadOrders() {
       }
       
       ordersList.innerHTML = orders.map(order => {
-        // Определяем класс статуса для стилизации
-        const statusClass = 
-          order.status === 'В обработке' ? 'status-processing' :
-          order.status === 'В сборке' ? 'status-assembling' :
-          order.status === 'В пути' ? 'status-delivery' :
-          order.status === 'Ожидает получения' ? 'status-waiting' :
-          'status-delivered';
+        const deliveryTime = order.estimatedDelivery ? new Date(order.estimatedDelivery).toLocaleString() : 'Не указано';
+        const statusClass = `status-${order.status.toLowerCase().replace(/\s/g, '-')}`;
         
         return `
           <div class="order-item">
@@ -1074,9 +1006,42 @@ function loadOrders() {
               <div class="order-id">Заказ #${order.id}</div>
               <div class="order-status ${statusClass}">${order.status}</div>
             </div>
-            <div>Сумма: ${order.total} ₽</div>
-            <div>Адрес: ${order.address}</div>
-            <div>Дата: ${new Date(order.date).toLocaleString()}</div>
+            
+            <div class="order-details">
+              <div class="order-info">
+                <div><strong>Дата заказа:</strong> ${new Date(order.date).toLocaleString()}</div>
+                <div><strong>Доставка к:</strong> ${deliveryTime}</div>
+                <div><strong>Адрес:</strong> ${order.address}</div>
+                <div><strong>Имя:</strong> ${order.username}</div>
+                ${order.comment ? `<div><strong>Комментарий:</strong> ${order.comment}</div>` : ''}
+              </div>
+              
+              <div class="order-items">
+                <h3>Товары:</h3>
+                ${order.items.map(item => `
+                  <div class="order-item-row">
+                    <span>${item.name}</span>
+                    <span>${item.quantity} × ${item.price} ₽ = ${item.quantity * item.price} ₽</span>
+                  </div>
+                `).join('')}
+              </div>
+              
+              <div class="order-summary">
+                <div class="order-total">Итого: ${order.total} ₽</div>
+              </div>
+            </div>
+            
+            ${order.statusHistory ? `
+            <div class="status-history">
+              <h3>История статусов:</h3>
+              ${order.statusHistory.map(entry => `
+                <div class="status-entry">
+                  <span class="status-date">${new Date(entry.date).toLocaleString()}</span>
+                  <span class="status-name">${entry.status}</span>
+                </div>
+              `).join('')}
+            </div>
+            ` : ''}
           </div>
         `;
       }).join('');
@@ -1143,14 +1108,10 @@ document.getElementById('addProductBtn').addEventListener('click', async () => {
   };
   
   try {
-    // Создаем базовую авторизацию
-    const authString = btoa('admin:DanyaJEANsmoke');
-    
     const response = await fetch(`${API_URL}/api/admin/products`, {
       method: 'POST',
       headers: { 
-        'Content-Type': 'application/json',
-        'Authorization': `Basic ${authString}`
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify(newProduct)
     });
@@ -1197,72 +1158,6 @@ document.getElementById('submitAdminCodeBtn').addEventListener('click', () => {
     errorElement.style.display = 'block';
   }
 });
-
-function loadOrders() {
-  const ordersList = document.getElementById('ordersList');
-  ordersList.innerHTML = '<div class="loading">Загрузка заказов</div>';
-  
-  fetch(`${API_URL}/api/orders?email=${userId}`)
-    .then(res => res.json())
-    .then(orders => {
-      if (orders.length === 0) {
-        ordersList.innerHTML = '<div class="empty-orders">У вас пока нет заказов</div>';
-        return;
-      }
-      
-      ordersList.innerHTML = orders.map(order => {
-        const deliveryTime = new Date(order.estimatedDelivery).toLocaleString();
-        const statusClass = `status-${order.status.toLowerCase().replace(/\s/g, '-')}`;
-        
-        return `
-          <div class="order-item">
-            <div class="order-header">
-              <div class="order-id">Заказ #${order.id}</div>
-              <div class="order-status ${statusClass}">${order.status}</div>
-            </div>
-            
-            <div class="order-details">
-              <div class="order-info">
-                <div><strong>Дата заказа:</strong> ${new Date(order.date).toLocaleString()}</div>
-                <div><strong>Доставка к:</strong> ${deliveryTime}</div>
-                <div><strong>Адрес:</strong> ${order.address}</div>
-                <div><strong>username:</strong> ${order.username}</div>
-                ${order.comment ? `<div><strong>Комментарий:</strong> ${order.comment}</div>` : ''}
-              </div>
-              
-              <div class="order-items">
-                <h3>Товары:</h3>
-                ${order.items.map(item => `
-                  <div class="order-item-row">
-                    <span>${item.name}</span>
-                    <span>${item.quantity} × ${item.price} ₽ = ${item.quantity * item.price} ₽</span>
-                  </div>
-                `).join('')}
-              </div>
-              
-              <div class="order-summary">
-                <div class="order-total">Итого: ${order.total} ₽</div>
-              </div>
-            </div>
-            
-            <div class="status-history">
-              <h3>История статусов:</h3>
-              ${order.statusHistory.map(entry => `
-                <div class="status-entry">
-                  <span class="status-date">${new Date(entry.date).toLocaleString()}</span>
-                  <span class="status-name">${entry.status}</span>
-                </div>
-              `).join('')}
-            </div>
-          </div>
-        `;
-      }).join('');
-    })
-    .catch(error => {
-      console.error('Ошибка загрузки заказов:', error);
-      ordersList.innerHTML = '<div class="empty-orders">Ошибка загрузки заказов</div>';
-    });
-}
 
 // Инициализация
 initUser();
