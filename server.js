@@ -3,7 +3,6 @@ const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
 const basicAuth = require('basic-auth');
-const bodyParser = require('body-parser');
 
 const app = express();
 
@@ -11,21 +10,23 @@ const app = express();
 const TELEGRAM_BOT_TOKEN = '8082201989:AAEOWxVzIEHfwgwIwxKWYlhuo-aJruuIvEs';
 const TELEGRAM_CHAT_ID = '7885873416';
 
-// Настройки CORS для Railway
+app.get('/api/health', (req, res) => {
+  res.status(200).json({ status: 'ok' });
+});
+
+// Настройки CORS
 app.use(cors({
-  origin: ['https://jean-smoke-shop.railway.app', 'https://your-custom-domain.com'], // Замените на ваш домен
+  origin: '*',
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
-app.use(bodyParser.json({ limit: '10mb' }));
-app.use(bodyParser.urlencoded({ extended: true, limit: '10mb' }));
-app.use(express.static(__dirname)); // Обслуживаем статические файлы
+app.use(express.json());
+app.use(express.static('.')); // Обслуживаем статические файлы из текущей директории
 
 // Конфигурация
 const DATA_FILE = path.join(__dirname, 'data.json');
 const ORDERS_FILE = path.join(__dirname, 'orders.json');
-const USERS_FILE = path.join(__dirname, 'users.json');
 const ADMIN_USER = 'admin';
 const ADMIN_PASS = 'DanyaJEANsmoke';
 
@@ -33,13 +34,12 @@ const ADMIN_PASS = 'DanyaJEANsmoke';
 function loadData() {
   try {
     if (fs.existsSync(DATA_FILE)) {
-      return JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+      return JSON.parse(fs.readFileSync(DATA_FILE));
     }
   } catch (err) {
     console.error('Ошибка загрузки данных:', err);
   }
   
-  // Данные по умолчанию
   return [
     { id: 'p1', name: 'СНЮС', price: 500, image: 'https://i.pinimg.com/736x/bf/ef/40/bfef4084b193214a0a130ed2e00b87d3.jpg', stock: 150 },
     { id: 'p2', name: 'PODONKI', price: 500, image: 'https://i.pinimg.com/736x/bf/ef/40/bfef4084b193214a0a130ed2e00b87d3.jpg', stock: 120 },
@@ -51,7 +51,7 @@ function loadData() {
 function loadOrders() {
   try {
     if (fs.existsSync(ORDERS_FILE)) {
-      return JSON.parse(fs.readFileSync(ORDERS_FILE, 'utf8'));
+      return JSON.parse(fs.readFileSync(ORDERS_FILE));
     }
   } catch (err) {
     console.error('Ошибка загрузки заказов:', err);
@@ -59,48 +59,21 @@ function loadOrders() {
   return [];
 }
 
-function loadUsers() {
-  try {
-    if (fs.existsSync(USERS_FILE)) {
-      return JSON.parse(fs.readFileSync(USERS_FILE, 'utf8'));
-    }
-  } catch (err) {
-    console.error('Ошибка загрузки пользователей:', err);
-  }
-  return [];
-}
-
 function saveData(data) {
-  try {
-    fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
-  } catch (err) {
-    console.error('Ошибка сохранения данных:', err);
-  }
+  fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
 }
 
 function saveOrders(orders) {
-  try {
-    fs.writeFileSync(ORDERS_FILE, JSON.stringify(orders, null, 2));
-  } catch (err) {
-    console.error('Ошибка сохранения заказов:', err);
-  }
-}
-
-function saveUsers(users) {
-  try {
-    fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2));
-  } catch (err) {
-    console.error('Ошибка сохранения пользователей:', err);
-  }
+  fs.writeFileSync(ORDERS_FILE, JSON.stringify(orders, null, 2));
 }
 
 let products = loadData();
 let orders = loadOrders();
-let users = loadUsers();
 
 // Middleware для базовой авторизации
 const auth = (req, res, next) => {
   const user = basicAuth(req);
+  console.log('Auth attempt:', user);
   
   if (!user || user.name !== ADMIN_USER || user.pass !== ADMIN_PASS) {
     res.set('WWW-Authenticate', 'Basic realm=Authorization Required');
@@ -113,15 +86,6 @@ const auth = (req, res, next) => {
 app.use((req, res, next) => {
   console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
   next();
-});
-
-// Health check для Railway
-app.get('/health', (req, res) => {
-  res.status(200).json({ 
-    status: 'OK', 
-    timestamp: new Date().toISOString(),
-    service: 'Jean Smoke Shop API'
-  });
 });
 
 // API Endpoints
@@ -314,38 +278,12 @@ app.delete('/api/admin/products/:id', auth, (req, res) => {
   }
 });
 
-// Обслуживание статических файлов
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'index.html'));
-});
-
-app.get('/admin', (req, res) => {
-  res.sendFile(path.join(__dirname, 'admin.html'));
-});
-
-app.get('/cart', (req, res) => {
-  res.sendFile(path.join(__dirname, 'cart.html'));
-});
-
-// Обработка 404
-app.use('*', (req, res) => {
-  res.status(404).json({ error: 'Маршрут не найден' });
-});
-
-// Обработка ошибок
-app.use((error, req, res, next) => {
-  console.error('Необработанная ошибка:', error);
-  res.status(500).json({ error: 'Внутренняя ошибка сервера' });
-});
-
 // Запуск сервера
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 Сервер запущен на порту ${PORT}`);
-  console.log('📊 Админ-доступ:');
-  console.log(`   Логин: ${ADMIN_USER}`);
-  console.log(`   Пароль: ${ADMIN_PASS}`);
-  console.log(`🌐 Web App доступен по: http://localhost:${PORT}`);
-  console.log(`🔧 API доступно по: http://localhost:${PORT}/api`);
-  console.log(`⚙️  Админ-панель: http://localhost:${PORT}/admin`);
+app.listen(PORT, () => {
+  console.log(`Сервер запущен на порту ${PORT}`);
+  console.log('Админ-доступ:');
+  console.log(`Логин: ${ADMIN_USER}`);
+  console.log(`Пароль: ${ADMIN_PASS}`);
+  console.log(`API доступно по: http://localhost:${PORT}`);
 });
