@@ -1,0 +1,27 @@
+<!-- payment.html -->
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<title>Оплата через YooMoney</title>
+</head>
+<body>
+<h2>Оплата через YooMoney</h2>
+<p>Нажмите кнопку ниже для завершения оплаты.</p>
+<button id="payYooMoneyBtn">Оплатить через YooMoney</button>
+
+<script>
+// Здесь можно вставить ваш скрипт для интеграции с YooMoney API
+document.getElementById('payYooMoneyBtn').addEventListener('click', () => {
+    // В реальной ситуации нужно отправить запрос на сервер для создания платежа
+    // и получить ссылку для оплаты.
+    // Для демонстрации откроем статическую ссылку или сделаем имитацию.
+    
+    // Замените URL ниже на реальную ссылку YooMoney или ваш API-обработчик
+    const yooMoneyPaymentUrl = 'https://yoomoney.ru/quickpay/confirm.xml?receiver=ВАШ_ЯД_КАССА&sum=100&label=order123';
+
+    window.location.href = yooMoneyPaymentUrl;
+});
+</script>
+</body>
+</html>

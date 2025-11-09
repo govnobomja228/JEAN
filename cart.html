@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+<title>Корзина - Jean Smoke</title>
+<style>
+body {
+  font-family: Arial, sans-serif;
+  background-color: #121212;
+  color: white;
+  margin: 0;
+  padding: 20px;
+  touch-action: manipulation;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.cart-container {
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.cart-items {
+  background: #1e1e1e;
+  border-radius: 10px;
+  padding: 20px;
+  margin-bottom: 20px;
+}
+
+.cart-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 10px 0;
+  border-bottom: 1px solid #333;
+}
+
+.total {
+  font-weight: bold;
+  font-size: 1.2em;
+  margin-top: 10px;
+  color: #81d8d0;
+}
+
+.input-field {
+  width: 100%;
+  padding: 12px;
+  margin: 10px 0;
+  background: #1e1e1e;
+  border: 1px solid #333;
+  border-radius: 8px;
+  color: white;
+  font-size: 1em;
+}
+
+.delivery-time-container {
+  margin: 15px 0;
+}
+
+.delivery-time-container label {
+  display: block;
+  margin-bottom: 5px;
+  color: #81d8d0;
+}
+
+#deliveryTime {
+  width: 100%;
+  padding: 12px;
+  background: #1e1e1e;
+  border: 1px solid #333;
+  border-radius: 8px;
+  color: white;
+  font-size: 1em;
+}
+
+.buttons-container {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.glow-on-hover {
+  padding: 15px;
+  border: none;
+  outline: none;
+  color: #fff;
+  background: #111;
+  cursor: pointer;
+  position: relative;
+  z-index: 0;
+  border-radius: 10px;
+  font-weight: bold;
+  font-size: 1.1em;
+}
+
+#orderBtn {
+  background: #27ae60;
+}
+
+.empty-cart {
+  text-align: center;
+  padding: 40px 0;
+  color: #81d8d0;
+  font-size: 1.2em;
+}
+
+.user-id-info {
+  background: rgba(255,255,255,0.1);
+  padding: 15px;
+  border-radius: 10px;
+  margin-bottom: 20px;
+  text-align: center;
+  font-size: 1.1em;
+}
+
+.user-id-label {
+  color: #81d8d0;
+  font-weight: bold;
+}
+
+@media (max-width: 768px) {
+  .cart-container {
+    padding: 10px;
+  }
+  
+  .cart-items {
+    padding: 15px;
+  }
+  
+  .cart-item {
+    flex-direction: column;
+  }
+  
+  .buttons-container {
+    flex-direction: column;
+  }
+  
+  .glow-on-hover {
+    width: 100%;
+  }
+}
+</style>
+</head>
+<body>
+<div class="cart-container">
+  <h1>Ваша корзина</h1>
+  
+  <div class="user-id-info">
+    Ваш ID: <span class="user-id-label" id="userIdDisplay">загрузка...</span>
+  </div>
+
+  <div id="cartItems" class="cart-items">
+    <div class="empty-cart">Корзина пуста</div>
+  </div>
+
+  <input type="text" id="usernameInput" class="input-field" placeholder="введите ваш username" required>
+
+  <input type="text" id="addressInput" class="input-field" placeholder="Адрес доставки" required>
+  
+  <div class="delivery-time-container">
+    <select id="deliveryTime" class="input-field" required>
+      <option value="" disabled selected>Выберите время</option>
+      <option value="1">1 час (экспресс)</option>
+      <option value="2">2 часа</option>
+      <option value="3">3 часа</option>
+      <option value="4">4 часа</option>
+      <option value="5">5 часов</option>
+    </select>
+  </div>
+
+  <input type="text" id="commentInput" class="input-field" placeholder="Комментарий к заказу (необязательно)">
+
+  <div class="buttons-container">
+    <button class="glow-on-hover" id="backBtn">Назад к товарам</button>
+    <button class="glow-on-hover" id="orderBtn">Оформить заказ</button>
+  </div>
+</div>
+
+<script>
+const API_URL = window.location.origin;
+
+// Инициализация пользователя
+function initUser() {
+  let userId = localStorage.getItem('userId');
+  
+  if (!userId) {
+    try {
+      fetch(`${API_URL}/api/register`)
+        .then(res => res.json())
+        .then(data => {
+          if (data && data.clientId) {
+            userId = data.clientId;
+            localStorage.setItem('userId', userId);
+            document.getElementById('userIdDisplay').textContent = userId;
+          } else {
+            generateLocalId();
+          }
+        })
+        .catch(() => generateLocalId());
+    } catch (e) {
+      generateLocalId();
+    }
+  } else {
+    document.getElementById('userIdDisplay').textContent = userId;
+  }
+  
+  function generateLocalId() {
+    userId = 'local_' + Math.random().toString(36).substr(2, 8);
+    localStorage.setItem('userId', userId);
+    document.getElementById('userIdDisplay').textContent = userId;
+  }
+  
+  return userId;
+}
+
+// Отображение корзины
+function renderCart() {
+  const cartDiv = document.getElementById('cartItems');
+  const products = JSON.parse(localStorage.getItem('productsData')) || [];
+  const cartQuantities = JSON.parse(localStorage.getItem('cartQuantities')) || {};
+  
+  let total = 0;
+  let hasItems = false;
+  let itemsHtml = '';
+
+  products.forEach(product => {
+    const quantity = cartQuantities[product.id] || 0;
+    if (quantity > 0) {
+      hasItems = true;
+      const itemTotal = product.price * quantity;
+      total += itemTotal;
+      
+      itemsHtml += `
+        <div class="cart-item">
+          <span>${product.name} - ${quantity} × ${product.price} ₽</span>
+          <span>${itemTotal} ₽</span>
+        </div>
+      `;
+    }
+  });
+
+  if (hasItems) {
+    cartDiv.innerHTML = itemsHtml + `<div class="total">Итого: ${total} ₽</div>`;
+    document.getElementById('orderBtn').disabled = false;
+  } else {
+    cartDiv.innerHTML = '<div class="empty-cart">Корзина пуста</div>';
+    document.getElementById('orderBtn').disabled = true;
+  }
+}
+
+// Оформление заказа
+document.getElementById('orderBtn').addEventListener('click', async () => {
+  const address = document.getElementById('addressInput').value.trim();
+    const username = document.getElementById('usernameInput').value.trim();
+  const deliveryTime = document.getElementById('deliveryTime').value;
+  
+  if (!address) {
+    alert('Пожалуйста, укажите адрес доставки');
+    return;
+  }
+
+    if (!username) {
+    alert('Пожалуйста, укажите username');
+    return;
+  }
+  
+  if (!deliveryTime) {
+    alert('Пожалуйста, выберите время доставки');
+    return;
+  }
+
+  const userId = localStorage.getItem('userId');
+  const products = JSON.parse(localStorage.getItem('productsData')) || [];
+  const cartQuantities = JSON.parse(localStorage.getItem('cartQuantities')) || {};
+  
+  const items = products
+    .filter(p => cartQuantities[p.id] > 0)
+    .map(p => ({
+      id: p.id,
+      name: p.name,
+      price: p.price,
+      quantity: cartQuantities[p.id]
+    }));
+
+  if (items.length === 0) {
+    alert('Корзина пуста!');
+    return;
+  }
+
+  const total = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+
+  try {
+    const response = await fetch(`${API_URL}/api/orders`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: userId,
+        items,
+        total,
+        address,
+        username,
+        comment: document.getElementById('commentInput').value,
+        deliveryTime
+      })
+    });
+
+    if (response.ok) {
+      localStorage.removeItem('cartQuantities');
+      alert('Заказ успешно оформлен! Статус можно отслеживать в "Мои заказы"');
+      window.location.href = 'index.html';
+    } else {
+      const error = await response.json();
+      throw new Error(error.error || 'Ошибка сервера');
+    }
+  } catch (error) {
+    console.error('Ошибка:', error);
+    alert('Произошла ошибка при оформлении заказа: ' + error.message);
+  }
+});
+
+// Возврат к товарам
+document.getElementById('backBtn').addEventListener('click', () => {
+  window.location.href = 'index.html';
+});
+
+// Инициализация
+initUser();
+renderCart();
+</script>
+</body>
+</html>
